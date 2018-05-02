@@ -5,6 +5,7 @@
 // @author      klept0
 // @include     https://wwws.mint.com/*
 // @include     https://mint.intuit.com/*
+// @homepage    https://github.com/klept0/useful_userscripts/
 // @version     1.2
 // @grant       none
 // ==/UserScript==

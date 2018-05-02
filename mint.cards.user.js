@@ -12,4 +12,11 @@
 // @updateURL
 // ==/UserScript==
 
-document.getElementsByClassName('promotions-personalized-offers-ui-single-offer')[0].remove();
+function hideOffer() {
+    if (document.getElementsByClassName('promotions-personalized-offers-ui-single-offer').length > 0) {
+        document.getElementsByClassName('promotions-personalized-offers-ui-single-offer')[0].remove();
+    } else {
+        setTimeout(hideOffer,10);
+    }
+}
+setTimeout(hideOffer,0);

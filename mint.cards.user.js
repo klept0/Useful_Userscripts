@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name Mint Hide Cards
-// @namespace com.klept0.mint.js
+// @name Mint Hide Promoted Credit Cards
+// @namespace mint.cards.user.js
 // @author klept0
 // @description Hide promoted credit cards on mint.com
 // @include https://*.mint.com/*

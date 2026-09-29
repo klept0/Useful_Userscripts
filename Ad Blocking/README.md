@@ -46,10 +46,11 @@ Each category can be switched on or off from the panel in the bottom-right corne
 - **Shift + S** → Toggle skipping (on/off); ignored while typing in a text field
 - **Click GUI toggle box** in bottom-right corner to toggle skipping
 - **Click a category button** to include/exclude that category
+- **Userscript manager menu → Show/hide on-screen controls** to hide both panels (skipping and Shift + S keep working; use the same menu entry to bring them back)
 
 ## 💾 Persistent State
 
-Your on/off and category preferences are saved automatically using `localStorage`.
+Your on/off, category and show/hide preferences are saved automatically using `localStorage`.
 
 ## 📜 Credits
 

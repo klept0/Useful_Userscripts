@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         SponsorBlock + Ad Skipper Enhanced
 // @namespace    http://tampermonkey.net/
-// @version      2.1.0
+// @version      2.2.0
 // @description  Skips YouTube sponsor segments (via the SponsorBlock API) and video ads, with an on/off toggle and per-category toggles.
 // @author       klept0 (based on 74th's Simple Sponsor Skipper)
 // @license      MIT
 // @match        https://www.youtube.com/*
-// @grant        none
+// @grant        GM_registerMenuCommand
 // @homepageURL  https://github.com/klept0/Useful_Userscripts
 // @downloadURL  https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Ad%20Blocking/sponsorblock-ad-skipper.user.js
 // @updateURL    https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Ad%20Blocking/sponsorblock-ad-skipper.user.js
@@ -169,4 +169,19 @@
   });
 
   document.body.append(categoryPanel, toggleUI);
+
+  // Show/hide the on-screen controls from the userscript manager menu.
+  // Skipping and Shift+S keep working while they're hidden.
+  const renderControlsVisibility = () => {
+    const display = getPref('showControls') ? '' : 'none';
+    categoryPanel.style.display = display;
+    toggleUI.style.display = display;
+  };
+
+  GM_registerMenuCommand('Show/hide on-screen controls', () => {
+    setPref('showControls', !getPref('showControls'));
+    renderControlsVisibility();
+  });
+
+  renderControlsVisibility();
 })();

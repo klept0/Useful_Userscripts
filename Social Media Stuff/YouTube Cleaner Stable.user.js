@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YouTube Cleaner Stable
 // @namespace    http://tampermonkey.net/
-// @version      3.2.0
-// @description  Stable YouTube cleanup: 5-row grid default, Shorts blocker, sidebar cleanup, menu toggles, and new-video highlighting.
+// @version      3.3.0
+// @description  Stable YouTube cleanup: responsive grid (up to 5 per row by default), clamped titles, Shorts blocker, sidebar cleanup, menu toggles, and new-video highlighting.
 // @author       Dean / enhanced
 // @match        https://www.youtube.com/*
 // @grant        GM_addStyle
@@ -66,8 +66,8 @@
         GM_registerMenuCommand(`${CFG.showAbsoluteDates ? '✅' : '❌'} Show upload date instead of "X ago"`, () => toggle('showAbsoluteDates'));
         GM_registerMenuCommand(`${CFG.alwaysShowYear ? '✅' : '❌'} Always show year in dates`, () => toggle('alwaysShowYear'));
 
-        GM_registerMenuCommand(`Grid: ${CFG.videosPerRow} videos per row`, () => {
-            const value = Number(prompt('Videos per row, 3–7:', CFG.videosPerRow));
+        GM_registerMenuCommand(`Grid: up to ${CFG.videosPerRow} videos per row`, () => {
+            const value = Number(prompt('Maximum videos per row, 3–7 (fewer are shown when the window is narrow):', CFG.videosPerRow));
             if (Number.isInteger(value) && value >= 3 && value <= 7) {
                 save('videosPerRow', value);
             }
@@ -130,6 +130,31 @@
         #video-title.ytd-rich-grid-slim-media {
             font-size: 1.4rem !important;
             line-height: 2rem !important;
+        }
+
+        /* Flex children default to min-width: auto, so a long unbroken
+           title stretches the card past its column instead of wrapping. */
+        ytd-rich-item-renderer,
+        ytd-rich-grid-media #details,
+        ytd-rich-grid-media #meta,
+        yt-lockup-view-model,
+        yt-lockup-metadata-view-model {
+            min-width: 0 !important;
+        }
+
+        /* Two lines max, ellipsis after, and break long words/URLs. */
+        #video-title.ytd-rich-grid-media,
+        #video-title.ytd-rich-grid-slim-media,
+        yt-lockup-metadata-view-model h3,
+        yt-lockup-metadata-view-model h3 a {
+            display: -webkit-box !important;
+            -webkit-box-orient: vertical !important;
+            -webkit-line-clamp: 2 !important;
+            line-clamp: 2 !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
         }
 
         #metadata-line.ytd-video-meta-block {
@@ -390,13 +415,33 @@
         });
     }
 
+    // Narrowest a card may get before the grid drops a column, so a half-
+    // screen window shows fewer, readable cards instead of squeezing
+    // videosPerRow (which becomes the maximum) into the space.
+    const MIN_CARD_WIDTH_PX = 220;
+
+    // Re-fit the grid when it changes width: window resize, sidebar toggle.
+    const gridResizeObserver = new ResizeObserver(() => scheduleCleanup());
+    const observedGrids = new WeakSet();
+
     // The stylesheet already forces rows to display: contents; YouTube also
     // writes these vars inline on the renderer, so override them there too.
     function applyGridFixes() {
         document.querySelectorAll('ytd-rich-grid-renderer').forEach(renderer => {
-            renderer.style.setProperty('--ytd-rich-grid-items-per-row', String(CFG.videosPerRow), 'important');
-            renderer.style.setProperty('--ytd-rich-grid-posts-per-row', String(CFG.videosPerRow), 'important');
-            renderer.style.setProperty('--ytd-rich-grid-slim-items-per-row', String(CFG.videosPerRow), 'important');
+            if (!observedGrids.has(renderer)) {
+                observedGrids.add(renderer);
+                gridResizeObserver.observe(renderer);
+            }
+
+            const width = renderer.clientWidth;
+            if (!width) return; // grid of an inactive (hidden) page
+
+            const perRow = String(Math.max(1, Math.min(CFG.videosPerRow, Math.floor(width / MIN_CARD_WIDTH_PX))));
+            if (renderer.style.getPropertyValue('--ytd-rich-grid-items-per-row') === perRow) return;
+
+            renderer.style.setProperty('--ytd-rich-grid-items-per-row', perRow, 'important');
+            renderer.style.setProperty('--ytd-rich-grid-posts-per-row', perRow, 'important');
+            renderer.style.setProperty('--ytd-rich-grid-slim-items-per-row', perRow, 'important');
         });
     }
 

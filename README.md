@@ -2,7 +2,7 @@
 
 **Reddit 503 Auto Refresh.user.js** - Reloads Reddit automatically when it serves a server error (5xx) page, backing off between retries (up to 10). [Install](https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Social%20Media%20Stuff/Reddit%20503%20Auto%20Refresh.user.js)
 
-**YouTube Cleaner Stable.user.js** - Configurable YouTube cleanup: adjustable videos-per-row grid, Shorts blocking and redirect to the normal player, sidebar/Mixes/topic cleanup, new-video highlighting, and approximate upload dates in place of "X ago". All options toggle from the userscript manager menu. [Install](https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Social%20Media%20Stuff/YouTube%20Cleaner%20Stable.user.js)
+**YouTube Cleaner Stable.user.js** - Configurable YouTube cleanup: responsive grid with an adjustable maximum videos per row (drops columns in narrow or half-screen windows), two-line clamped titles, Shorts blocking and redirect to the normal player, sidebar/Mixes/topic cleanup, new-video highlighting, and approximate upload dates in place of "X ago". All options toggle from the userscript manager menu. [Install](https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Social%20Media%20Stuff/YouTube%20Cleaner%20Stable.user.js)
 
 **sponsorblock-ad-skipper.user.js** - Skips YouTube sponsor segments (via SponsorBlock) and video ads, with per-category toggles. See [Ad Blocking/README.md](Ad%20Blocking/README.md). [Install](https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Ad%20Blocking/sponsorblock-ad-skipper.user.js)
 

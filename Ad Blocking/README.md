@@ -9,9 +9,12 @@ This is a lightweight yet powerful userscript that automatically skips:
 ## 🔧 Features
 
 - **Real-time segment skipping** using official SponsorBlock API
-- **Ad skipping** based on DOM detection (`ad-showing` class)
+- **Ad skipping** based on DOM detection (`ad-showing` class on the player), clicking **Skip** when offered
+- **Per-category toggles** in a panel above the on/off button
+- **Private lookups**: segments are fetched by a 4-character hash prefix of the video ID, so the SponsorBlock server never learns which video you're watching
+- **API response caching** per video
 - **Keyboard toggle** (Shift + S) to enable/disable skipping on the fly
-- **Persistent toggle state** using `localStorage`
+- **Persistent settings** (on/off and categories) using `localStorage`
 - **Clickable GUI** in bottom-right corner of the page
 - Fully compatible with **YouTube's SPA navigation** (instant page loads)
 
@@ -23,7 +26,9 @@ Install with a userscript manager like:
 - Violentmonkey
 - Greasemonkey
 
-**Install URL:** [Paste script manually or host on your GreasyFork/GitHub]
+**Install URL:** [https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Ad%20Blocking/sponsorblock-ad-skipper.user.js](https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Ad%20Blocking/sponsorblock-ad-skipper.user.js)
+
+Installing from this link enables automatic updates.
 
 ## 🧠 Segment Categories Skipped
 
@@ -34,26 +39,17 @@ Install with a userscript manager like:
 - `selfpromo` – Channel promotion
 - `music_offtopic` – Irrelevant music clips
 
-You can easily add/remove these in the `categoriesToSkip` array in the script.
+Each category can be switched on or off from the panel in the bottom-right corner. All are on by default.
 
 ## ⌨️ Controls
 
-- **Shift + S** → Toggle skipping (on/off)
+- **Shift + S** → Toggle skipping (on/off); ignored while typing in a text field
 - **Click GUI toggle box** in bottom-right corner to toggle skipping
+- **Click a category button** to include/exclude that category
 
 ## 💾 Persistent State
 
-Your skipping preference is saved automatically using `localStorage`.
-
-## ⚙️ Customization
-
-Open the script and modify the following if needed:
-
-```javascript
-const categoriesToSkip = [
-  "sponsor", "intro", "outro", "interaction", "selfpromo", "music_offtopic"
-];
-```
+Your on/off and category preferences are saved automatically using `localStorage`.
 
 ## 📜 Credits
 
@@ -64,9 +60,7 @@ const categoriesToSkip = [
 
 ## 🛠️ Future Enhancements (Planned or Available on Request)
 
-- Segment category toggle via GUI
 - Tooltip previews of upcoming skips
-- API response caching for performance
 - Export/import skip preferences
 
 ## 📫 Feedback / Requests

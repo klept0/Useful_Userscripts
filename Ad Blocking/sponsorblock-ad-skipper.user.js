@@ -1,108 +1,172 @@
 // ==UserScript==
 // @name         SponsorBlock + Ad Skipper Enhanced
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  Skips YouTube sponsor segments (via SponsorBlock API) and video ads (via DOM detection), with on/off toggle.
-// @author       klept0 (based on work by 74th)
-// @match        *://www.youtube.com/*
-// @grant        none
+// @version      2.1.0
+// @description  Skips YouTube sponsor segments (via the SponsorBlock API) and video ads, with an on/off toggle and per-category toggles.
+// @author       klept0 (based on 74th's Simple Sponsor Skipper)
 // @license      MIT
-// @homepageURL  https://klept0.com
-// @supportURL   https://klept0.com/contact
-// @downloadURL  https://greasyfork.org/en/scripts/453320-simple-sponsor-skipper
+// @match        https://www.youtube.com/*
+// @grant        none
+// @homepageURL  https://github.com/klept0/Useful_Userscripts
+// @downloadURL  https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Ad%20Blocking/sponsorblock-ad-skipper.user.js
+// @updateURL    https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Ad%20Blocking/sponsorblock-ad-skipper.user.js
 // ==/UserScript==
 
-(function () {
-    'use strict';
+(() => {
+  'use strict';
 
-    const categoriesToSkip = [
-        "sponsor", "intro", "outro", "interaction", "selfpromo", "music_offtopic"
-    ];
+  const CATEGORIES = [
+    'sponsor', 'intro', 'outro', 'interaction', 'selfpromo', 'music_offtopic'
+  ];
 
-    const skipKey = 'sponsorBlockSkipEnabled';
-    let skipEnabled = JSON.parse(localStorage.getItem(skipKey) ?? 'true');
+  const API_URL = 'https://sponsor.ajay.app/api/skipSegments';
+  const RETRY_AFTER_ERROR_MS = 30000;
 
-    const toggleUI = document.createElement('div');
-    toggleUI.textContent = skipEnabled ? '⏭️ ON' : '⏸️ OFF';
-    Object.assign(toggleUI.style, {
-        position: 'fixed',
-        bottom: '10px',
-        right: '10px',
-        zIndex: '10000',
-        background: '#222',
-        color: '#0f0',
-        padding: '4px 8px',
-        borderRadius: '6px',
-        fontFamily: 'monospace',
-        cursor: 'pointer',
-        fontSize: '14px',
-        opacity: '0.7'
-    });
-    toggleUI.addEventListener('click', () => {
-        skipEnabled = !skipEnabled;
-        localStorage.setItem(skipKey, JSON.stringify(skipEnabled));
-        toggleUI.textContent = skipEnabled ? '⏭️ ON' : '⏸️ OFF';
-        toggleUI.style.color = skipEnabled ? '#0f0' : '#f00';
-    });
-    document.body.appendChild(toggleUI);
-
-    document.addEventListener('keydown', e => {
-        if (e.shiftKey && e.key.toLowerCase() === 's') {
-            skipEnabled = !skipEnabled;
-            localStorage.setItem(skipKey, JSON.stringify(skipEnabled));
-            toggleUI.textContent = skipEnabled ? '⏭️ ON' : '⏸️ OFF';
-            toggleUI.style.color = skipEnabled ? '#0f0' : '#f00';
-        }
-    });
-
-    const fetchSegments = async videoID => {
-        const url = `https://sponsor.ajay.app/api/skipSegments?videoID=${videoID}`;
-        const res = await fetch(url);
-        if (!res.ok) return [];
-        const data = await res.json();
-        return data.filter(d => categoriesToSkip.includes(d.category[0]));
-    };
-
-    const skipSegments = async () => {
-        if (!skipEnabled) return;
-        const player = document.querySelector('video');
-        if (!player || player.duration === 0) return;
-
-        const videoID = new URLSearchParams(location.search).get('v');
-        if (!videoID) return;
-
-        const segments = await fetchSegments(videoID);
-        const check = () => {
-            if (!skipEnabled) return;
-            const currentTime = player.currentTime;
-            for (const segment of segments) {
-                const [start, end] = segment.segment;
-                if (currentTime >= start && currentTime < end) {
-                    player.currentTime = end;
-                    break;
-                }
-            }
-        };
-        setInterval(check, 500);
-    };
-
-    const waitForPlayer = () => {
-        const player = document.querySelector('video');
-        if (player) skipSegments();
-        else setTimeout(waitForPlayer, 500);
-    };
-
-    const observer = new MutationObserver(() => {
-        waitForPlayer();
-        skipYTAds();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    function skipYTAds() {
-        const video = document.querySelector('video');
-        const adContainer = document.querySelector('.ad-showing');
-        if (video && adContainer) {
-            video.currentTime = video.duration;
-        }
+  // Global on/off and every category default to enabled.
+  const PREFS_KEY = 'sb_prefs';
+  const prefs = (() => {
+    try {
+      return JSON.parse(localStorage.getItem(PREFS_KEY)) || {};
+    } catch {
+      return {};
     }
+  })();
+
+  const getPref = key => prefs[key] ?? true;
+  const setPref = (key, val) => {
+    prefs[key] = val;
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  };
+
+  const getVideoId = () =>
+    location.pathname === '/watch' ? new URLSearchParams(location.search).get('v') : null;
+
+  const sha256Hex = async text => {
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  // videoId -> Promise<segments>. Caching the promise, not the result, keeps
+  // the 500ms loop from firing duplicate requests while one is in flight.
+  const segmentCache = new Map();
+
+  // Looks segments up by a 4-character hash prefix, so the SponsorBlock
+  // server never learns which video is being watched (the official
+  // extension does the same).
+  const fetchSegments = videoId => {
+    if (!segmentCache.has(videoId)) {
+      segmentCache.set(videoId, (async () => {
+        try {
+          const prefix = (await sha256Hex(videoId)).slice(0, 4);
+          const params = new URLSearchParams({ categories: JSON.stringify(CATEGORIES) });
+          const response = await fetch(`${API_URL}/${prefix}?${params}`);
+
+          // 404 means no segments for any video with this prefix.
+          if (!response.ok) return [];
+
+          const videos = await response.json();
+          const match = videos.find(v => v.videoID === videoId);
+          return match ? match.segments.filter(s => s.actionType === 'skip') : [];
+        } catch {
+          setTimeout(() => segmentCache.delete(videoId), RETRY_AFTER_ERROR_MS);
+          return [];
+        }
+      })());
+    }
+
+    return segmentCache.get(videoId);
+  };
+
+  const skipAd = (player, video) => {
+    player.querySelector('.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern')?.click();
+
+    if (Number.isFinite(video.duration)) {
+      video.currentTime = video.duration;
+    }
+  };
+
+  const skipSegment = async video => {
+    const videoId = getVideoId();
+    if (!videoId) return;
+
+    const segments = await fetchSegments(videoId);
+    if (getVideoId() !== videoId) return; // navigated away while fetching
+
+    const currentTime = video.currentTime;
+    const segment = segments.find(s =>
+      getPref(s.category) && currentTime >= s.segment[0] && currentTime < s.segment[1]
+    );
+
+    if (segment) {
+      const [start, end] = segment.segment;
+      video.currentTime = end;
+      console.log(`Skipped ${segment.category} segment: ${start} → ${end}`);
+    }
+  };
+
+  setInterval(() => {
+    if (!getPref('enabled')) return;
+
+    const player = document.getElementById('movie_player');
+    const video = player?.querySelector('video');
+    if (!video) return;
+
+    // The ad-showing class sits on the player, not on <body>.
+    if (player.classList.contains('ad-showing')) {
+      skipAd(player, video);
+    } else {
+      skipSegment(video);
+    }
+  }, 500);
+
+  // Category toggles
+  const categoryPanel = document.createElement('div');
+  categoryPanel.style = 'position:fixed;bottom:50px;right:10px;background:#111;color:#fff;padding:8px;border-radius:6px;z-index:99999;font-size:12px;';
+  categoryPanel.textContent = 'Skip categories: ';
+
+  CATEGORIES.forEach(cat => {
+    const btn = document.createElement('button');
+    const render = () => {
+      btn.textContent = getPref(cat) ? `✓ ${cat}` : `✗ ${cat}`;
+      btn.style.color = getPref(cat) ? '#0f0' : '#f00';
+    };
+
+    btn.style.cssText = 'margin:2px;padding:2px 6px;background:#222;border:none;cursor:pointer;';
+    btn.onclick = () => {
+      setPref(cat, !getPref(cat));
+      render();
+    };
+
+    render();
+    categoryPanel.appendChild(btn);
+  });
+
+  // Global on/off toggle
+  const toggleUI = document.createElement('div');
+  toggleUI.style = 'position:fixed;bottom:10px;right:10px;background:#222;padding:6px 10px;border-radius:6px;z-index:99999;cursor:pointer;font-size:14px;';
+
+  const renderToggle = () => {
+    toggleUI.textContent = getPref('enabled') ? '⏩ Skipping ON' : '⏸️ Skipping OFF';
+    toggleUI.style.color = getPref('enabled') ? '#0f0' : '#f00';
+  };
+
+  const toggleEnabled = () => {
+    setPref('enabled', !getPref('enabled'));
+    renderToggle();
+  };
+
+  toggleUI.onclick = toggleEnabled;
+  renderToggle();
+
+  // Shift+S toggles skipping, except while typing (search box, comments).
+  document.addEventListener('keydown', e => {
+    if (!e.shiftKey || e.code !== 'KeyS' || e.ctrlKey || e.metaKey || e.altKey) return;
+
+    const target = e.target;
+    if (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+
+    toggleEnabled();
+  });
+
+  document.body.append(categoryPanel, toggleUI);
 })();

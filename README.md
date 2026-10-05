@@ -84,6 +84,10 @@ Original script by habs; mod by /u/AM_NOT_BANANA_AMA to make it more user friend
 
 Found a bug or want a feature? [Open an issue](https://github.com/klept0/Useful_Userscripts/issues).
 
+## License
+
+My own work in this repo is under the [MIT License](LICENSE). Scripts based on someone else's work keep their original author's terms: **Bumble Enhanced** is AGPLv3 (as declared in its header), and the scripts adapted from other authors (Amazon Links, Reddit 503 Auto Refresh, YouTube Cleaner Stable, SponsorBlock + Ad Skipper Enhanced) remain credited to them.
+
 [yt-cleaner]: https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Social%20Media%20Stuff/YouTube%20Cleaner%20Stable.user.js
 [reddit-503]: https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Social%20Media%20Stuff/Reddit%20503%20Auto%20Refresh.user.js
 [sponsorblock]: https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Ad%20Blocking/sponsorblock-ad-skipper.user.js

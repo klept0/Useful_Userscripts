@@ -1,6 +1,8 @@
 // ==UserScript==
 // @name        Pegasus DL Firmware Filter
 // @namespace   klept0
+// @author      klept0
+// @license     MIT
 // @description Adds a console firmware picker and firmware sort to the Pegasus DL (github.com/pegasus-ps5/pegasus-dl) store and to pegasus-catalog.fly.dev, shows each package's minimum firmware on its card, and adds a "Send to PS5" button on the catalog site that opens the package in your PS5's Pegasus DL.
 // @include     /^https?:\/\/[^/]+:6970\/.*$/
 // @match       https://pegasus-catalog.fly.dev/*

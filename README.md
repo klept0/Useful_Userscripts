@@ -58,7 +58,7 @@ For the [Pegasus DL](https://github.com/pegasus-ps5/pegasus-dl) PS5 store and th
 - **Send to PS5** button on the catalog site that opens the package in Pegasus DL on your console
 - Adds the [PS4 FPKG Collection](https://github.com/M3hmetSa1t/pegasus-ps4-collection-catalog) catalog (866 PS4 FPKGs) to the catalog site
 
-Thanks to the [pegasus-ps5/pegasus-dl](https://github.com/pegasus-ps5/pegasus-dl) team for Pegasus DL. [Install][pegasus] · [Source](Gaming%20Stuff/Pegasus%20DL%20Firmware%20Filter.user.js) · [Details](Gaming%20Stuff/README.md)
+Thanks to the [pegasus-ps5/pegasus-dl](https://github.com/pegasus-ps5/pegasus-dl) team for Pegasus DL and to [M3hmetSa1t](https://github.com/M3hmetSa1t) for the PS4 FPKG Collection. [Install][pegasus] · [Source](Gaming%20Stuff/Pegasus%20DL%20Firmware%20Filter.user.js) · [Details](Gaming%20Stuff/README.md)
 
 ### Shopping
 

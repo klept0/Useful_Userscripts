@@ -1,6 +1,6 @@
 # Pegasus DL Firmware Filter
 
-A userscript for the web UI of [Pegasus DL](https://github.com/pegasus-ps5/pegasus-dl), the PS5 payload for downloading packages directly on the console, and for the [Pegasus Catalog](https://pegasus-catalog.fly.dev/) site that hosts its package sources. It adds a firmware filter and a firmware sort to both, so you can see at a glance which packages should work on your console, and a **Send to PS5** button on the catalog site that opens a package in your PS5's Pegasus DL.
+A userscript for the web UI of [Pegasus DL](https://github.com/pegasus-ps5/pegasus-dl), the PS5 payload for downloading packages directly on the console, and for the [Pegasus Catalog](https://pegasus-catalog.fly.dev/) site that hosts its package sources. It adds a firmware filter and a firmware sort to both, so you can see at a glance which packages should work on your console, a **Send to PS5** button on the catalog site that opens a package in your PS5's Pegasus DL, and the [PS4 FPKG Collection](https://github.com/M3hmetSa1t/pegasus-ps4-collection-catalog) as an extra catalog on the catalog site.
 
 ## Thanks
 
@@ -75,3 +75,10 @@ Upper bounds such as `FPKG ... up to 11.60` are ignored.
 3. Open the Pegasus DL web UI (`http://<your-ps5-ip>:6970/`). The controls appear next to the refresh button in the Store tab. On [pegasus-catalog.fly.dev](https://pegasus-catalog.fly.dev/) they appear under the catalog title.
 
 The script matches any host on port 6970, so it keeps working if your PS5's IP address changes. It does nothing on pages that are not Pegasus DL. Installing from the link above enables automatic updates.
+
+## Changelog
+
+- **1.3.0**: Adds the PS4 FPKG Collection catalog to the catalog site. PS4 packages get a `PS4` badge and are never hidden by the PS5 firmware picker.
+- **1.2.0**: Runs on pegasus-catalog.fly.dev with the same picker, sort and badges across the whole catalog. Adds **Send to PS5**.
+- **1.1.0**: Firmware picker by major version ("I'm on N.xx"), grouped by jailbreak range.
+- **1.0.0**: Firmware filter, firmware sort and FW badges in the Pegasus DL store.

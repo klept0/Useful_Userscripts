@@ -68,4 +68,4 @@ Your on/off, category and show/hide preferences are saved automatically using `l
 
 Found a bug? Want new features? Contact via:
 
-- [klept0.com/contact](https://klept0.com/contact)
+- [GitHub issues](https://github.com/klept0/Useful_Userscripts/issues)

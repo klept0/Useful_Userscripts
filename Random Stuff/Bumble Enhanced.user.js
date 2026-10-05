@@ -8,6 +8,9 @@
 // @grant       GM.getValue
 // @grant       GM.setValue
 // @license     AGPLv3
+// @homepageURL https://github.com/klept0/Useful_Userscripts
+// @downloadURL https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Random%20Stuff/Bumble%20Enhanced.user.js
+// @updateURL   https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Random%20Stuff/Bumble%20Enhanced.user.js
 // ==/UserScript==
 
 /* jshint esversion: 8 */

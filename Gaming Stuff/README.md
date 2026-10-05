@@ -82,3 +82,18 @@ The script matches any host on port 6970, so it keeps working if your PS5's IP a
 - **1.2.0**: Runs on pegasus-catalog.fly.dev with the same picker, sort and badges across the whole catalog. Adds **Send to PS5**.
 - **1.1.0**: Firmware picker by major version ("I'm on N.xx"), grouped by jailbreak range.
 - **1.0.0**: Firmware filter, firmware sort and FW badges in the Pegasus DL store.
+
+## TL;DR (caveman version)
+
+- Install script. Script make Pegasus DL smart.
+- Pick "I'm on N.xx". Script hide game that no run on your PS5. Only show game that *should* work.
+- Sort by FW. Low first or high first. Each game get FW rock-badge.
+- On pegasus-catalog.fly.dev: same picker, same sort. Type PS5 IP once. Click game. Click **Send to PS5**. PS5 open game. You pick link. Download happen.
+- Script add PS4 game pile from M3hmetSa1t to catalog site. PS4 game get `PS4` badge. PS5 firmware picker no hide PS4 game.
+- **Important:** PS5 no know M3hmetSa1t pile unless you add it. Go Pegasus DL > Sources > Add Source by URL. Paste this. Then Send to PS5 work for PS4 game too:
+
+  ```text
+  https://m3hmetsa1t.github.io/pegasus-ps4-collection-catalog/pegasus-ps4-catalog.json
+  ```
+
+- Badge only as smart as catalog text. "Should work", not "will work".

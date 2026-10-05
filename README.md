@@ -20,7 +20,6 @@ Scripts installed from these links update automatically when a new version is pu
 | [Reddit 503 Auto Refresh](#reddit-503-auto-refresh) | Reddit | 3 | [Install][reddit-503] |
 | [Pegasus DL Firmware Filter](#pegasus-dl-firmware-filter) | Pegasus DL (PS5), Pegasus Catalog | 1.3.0 | [Install][pegasus] |
 | [Amazon Links](#amazon-links) | Amazon | 2.0 | [Install][amazon] |
-| [Bumble Enhanced](#bumble-enhanced) | Bumble | 2.6.5 | [Install][bumble] |
 
 ### Social media
 
@@ -71,27 +70,16 @@ Thanks to the [pegasus-ps5/pegasus-dl](https://github.com/pegasus-ps5/pegasus-dl
 
 [Install][amazon] · [Source](Shopping%20Stuff/Amazon%20Links.user.js)
 
-### Other
-
-#### Bumble Enhanced
-
-- Shows whether someone swiped right on you
-- Shows users' online status
-- Changes your location on Bumble by longitude and latitude
-
-Original script by habs; mod by /u/AM_NOT_BANANA_AMA to make it more user friendly. [Install][bumble] · [Source](Random%20Stuff/Bumble%20Enhanced.user.js)
-
 ## Feedback
 
 Found a bug or want a feature? [Open an issue](https://github.com/klept0/Useful_Userscripts/issues).
 
 ## License
 
-My own work in this repo is under the [MIT License](LICENSE). Scripts based on someone else's work keep their original author's terms: **Bumble Enhanced** is AGPLv3 (as declared in its header), and the scripts adapted from other authors (Amazon Links, Reddit 503 Auto Refresh, YouTube Cleaner Stable, SponsorBlock + Ad Skipper Enhanced) remain credited to them.
+My own work in this repo is under the [MIT License](LICENSE). Scripts adapted from other authors (Amazon Links, Reddit 503 Auto Refresh, YouTube Cleaner Stable, SponsorBlock + Ad Skipper Enhanced) remain credited to them and keep their original terms.
 
 [yt-cleaner]: https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Social%20Media%20Stuff/YouTube%20Cleaner%20Stable.user.js
 [reddit-503]: https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Social%20Media%20Stuff/Reddit%20503%20Auto%20Refresh.user.js
 [sponsorblock]: https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Ad%20Blocking/sponsorblock-ad-skipper.user.js
 [pegasus]: https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Gaming%20Stuff/Pegasus%20DL%20Firmware%20Filter.user.js
 [amazon]: https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Shopping%20Stuff/Amazon%20Links.user.js
-[bumble]: https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Random%20Stuff/Bumble%20Enhanced.user.js

@@ -18,7 +18,7 @@ Scripts installed from these links update automatically when a new version is pu
 | [YouTube Cleaner Stable](#youtube-cleaner-stable) | YouTube | 3.3.0 | [Install][yt-cleaner] |
 | [SponsorBlock + Ad Skipper Enhanced](#sponsorblock--ad-skipper-enhanced) | YouTube | 2.2.0 | [Install][sponsorblock] |
 | [Reddit 503 Auto Refresh](#reddit-503-auto-refresh) | Reddit | 3 | [Install][reddit-503] |
-| [Pegasus DL Firmware Filter](#pegasus-dl-firmware-filter) | Pegasus DL (PS5), Pegasus Catalog | 1.2.0 | [Install][pegasus] |
+| [Pegasus DL Firmware Filter](#pegasus-dl-firmware-filter) | Pegasus DL (PS5), Pegasus Catalog | 1.3.0 | [Install][pegasus] |
 | [Amazon Links](#amazon-links) | Amazon | 2.0 | [Install][amazon] |
 | [Bumble Enhanced](#bumble-enhanced) | Bumble | 2.6.5 | [Install][bumble] |
 
@@ -56,6 +56,7 @@ For the [Pegasus DL](https://github.com/pegasus-ps5/pegasus-dl) PS5 store and th
 - "I'm on N.xx" console firmware picker, grouped by jailbreak range, that shows only packages that should work on your firmware
 - Firmware sort, plus a "FW N.xx+" badge on every card
 - **Send to PS5** button on the catalog site that opens the package in Pegasus DL on your console
+- Adds the [PS4 FPKG Collection](https://github.com/M3hmetSa1t/pegasus-ps4-collection-catalog) catalog (866 PS4 FPKGs) to the catalog site
 
 Thanks to the [pegasus-ps5/pegasus-dl](https://github.com/pegasus-ps5/pegasus-dl) team for Pegasus DL. [Install][pegasus] · [Source](Gaming%20Stuff/Pegasus%20DL%20Firmware%20Filter.user.js) · [Details](Gaming%20Stuff/README.md)
 

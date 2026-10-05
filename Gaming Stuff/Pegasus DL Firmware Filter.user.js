@@ -3,10 +3,10 @@
 // @namespace   klept0
 // @author      klept0
 // @license     MIT
-// @description Adds a console firmware picker and firmware sort to the Pegasus DL (github.com/pegasus-ps5/pegasus-dl) store and to pegasus-catalog.fly.dev, shows each package's minimum firmware on its card, and adds a "Send to PS5" button on the catalog site that opens the package in your PS5's Pegasus DL.
+// @description Adds a console firmware picker and firmware sort to the Pegasus DL (github.com/pegasus-ps5/pegasus-dl) store and to pegasus-catalog.fly.dev, shows each package's minimum firmware on its card, and adds a "Send to PS5" button on the catalog site that opens the package in your PS5's Pegasus DL. Also adds the PS4 FPKG Collection catalog (github.com/M3hmetSa1t/pegasus-ps4-collection-catalog) to the catalog site.
 // @include     /^https?:\/\/[^/]+:6970\/.*$/
 // @match       https://pegasus-catalog.fly.dev/*
-// @version     1.2.0
+// @version     1.3.0
 // @grant       none
 // @inject-into page
 // @run-at      document-start
@@ -32,6 +32,10 @@
     { min: 13, max: 13, label: '13.xx (Relapse)' }
   ];
   const UNKNOWN = Infinity;
+  // PS4 FPKGs (CUSA title IDs) state a PS4 system firmware, which says
+  // nothing about the PS5 firmware they need, so they are never hidden by
+  // the PS5 firmware picker and sort after PS5 packages.
+  const PS4 = 0;
   // The catalog site's "Send to PS5" button opens Pegasus DL with this hash.
   const OPEN_HASH = '#pegasus-open=';
 
@@ -48,6 +52,10 @@
   // "FPKG ... up to 11.60" is an upper bound, so it is removed first.
   function minFirmware(pkg) {
     if (fwCache.has(pkg)) return fwCache.get(pkg);
+    if (/^CUSA/i.test(pkg.titleId || '')) {
+      fwCache.set(pkg, PS4);
+      return PS4;
+    }
     const links = (pkg.downloadLinks || []).map((link) => link.name || '').join('\n');
     const text = `${pkg.description || ''}\n${links}`.replace(/up to \d{1,2}\.\d+/gi, '');
     const found = [];
@@ -71,8 +79,8 @@
     return !!(prefs.maxFw || prefs.sort);
   }
 
-  // Unknown firmware always sorts last; Array.prototype.sort is stable, so the
-  // catalog order is kept within each firmware.
+  // PS4 and unknown firmware always sort last; Array.prototype.sort is stable,
+  // so the catalog order is kept within each firmware.
   function applyPrefs(packages) {
     let result = prefs.maxFw ? packages.filter((pkg) => minFirmware(pkg) <= prefs.maxFw) : packages.slice();
     if (prefs.sort) {
@@ -81,8 +89,10 @@
         const a = minFirmware(left);
         const b = minFirmware(right);
         if (a === b) return 0;
-        if (a === UNKNOWN) return 1;
-        if (b === UNKNOWN) return -1;
+        const aLast = a === UNKNOWN || a === PS4;
+        const bLast = b === UNKNOWN || b === PS4;
+        if (aLast !== bLast) return aLast ? 1 : -1;
+        if (aLast) return a === PS4 ? -1 : 1;
         return (a - b) * direction;
       });
     }
@@ -91,6 +101,7 @@
 
   function badgeText(pkg) {
     const fw = minFirmware(pkg);
+    if (fw === PS4) return 'PS4';
     return fw === UNKNOWN ? '' : `FW ${fw}.xx+`;
   }
 
@@ -303,8 +314,26 @@
   // answered from the full catalog (fetched once and cached briefly), filtered
   // and sorted, so the app's own paging, search and infinite scroll keep
   // working over the whole catalog.
+  // Catalogs that are not on pegasus-catalog.fly.dev but are published as a
+  // Pegasus DL catalog JSON. They are added to the site's catalog list and
+  // served from their JSON, so they browse, search and copy like the others.
+  const EXTRA_CATALOGS = [
+    {
+      slug: 'ps4-fpkg-collection',
+      name: 'PS4 FPKG Collection',
+      // github.com/M3hmetSa1t/pegasus-ps4-collection-catalog (MIT)
+      sourceUrl: 'https://m3hmetsa1t.github.io/pegasus-ps4-collection-catalog/pegasus-ps4-catalog.json'
+    }
+  ];
+
   function initCatalogSite() {
     const PAGE_PATH = /^\/api\/catalogs\/([^/]+)\/packages$/;
+    const CATALOGS_PATH = '/api/catalogs';
+    const COPIES_PATH = /^\/api\/catalogs\/([^/]+)\/copies$/;
+    const PAGE_SIZE = 48;
+    const EXTRA_TTL_MS = 10 * 60000;
+    // Synthetic package ids for extra catalogs, well above the site's own.
+    const EXTRA_ID_BASE = 2000000000;
     const FULL_LIST_TTL_MS = 60000;
     const FETCH_CONCURRENCY = 6;
     const PS5_HOST_KEY = 'pegasusFwPs5Host';
@@ -316,20 +345,93 @@
     let view = { key: '', slug: '', pages: [], total: 0 };
     // The package last clicked in the grid, for the detail pane's Send button.
     let selected = null;
+    // Source URL per catalog slug, from the catalog list, for Send to PS5.
+    const sourceUrls = new Map(EXTRA_CATALOGS.map((catalog) => [catalog.slug, catalog.sourceUrl]));
+    const extraLoads = new Map();
 
     window.fetch = function (input, init) {
-      const method = (init && init.method) || (input instanceof Request ? input.method : 'GET');
+      const method = ((init && init.method) || (input instanceof Request ? input.method : 'GET')).toUpperCase();
       const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, location.href);
-      const match = url.origin === location.origin && method.toUpperCase() === 'GET' && PAGE_PATH.exec(url.pathname);
+      if (url.origin !== location.origin) return nativeFetch(input, init);
+      if (method === 'GET' && url.pathname === CATALOGS_PATH) {
+        return serveCatalogs(input, init);
+      }
+      const copies = method === 'POST' && COPIES_PATH.exec(url.pathname);
+      if (copies && extraCatalog(decodeURIComponent(copies[1]))) {
+        // The site counts copies on its server; extra catalogs have no counter.
+        return Promise.resolve(jsonResponse({ copyCount24h: 0 }));
+      }
+      const match = method === 'GET' && PAGE_PATH.exec(url.pathname);
       if (!match) return nativeFetch(input, init);
+      const slug = decodeURIComponent(match[1]);
+      // Extra catalogs have no server side to fall back to.
+      if (extraCatalog(slug)) return servePage(slug, url);
       // Any failure falls back to the site's normal request.
-      return servePage(decodeURIComponent(match[1]), url).catch(() => nativeFetch(input, init));
+      return servePage(slug, url).catch(() => nativeFetch(input, init));
     };
+
+    function jsonResponse(body) {
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    function extraCatalog(slug) {
+      return EXTRA_CATALOGS.find((catalog) => catalog.slug === slug) || null;
+    }
+
+    // Appends the extra catalogs to the site's list. One that fails to load is
+    // left out rather than shown empty.
+    async function serveCatalogs(input, init) {
+      const response = await nativeFetch(input, init);
+      if (!response.ok) return response;
+      const data = await response.clone().json();
+      const catalogs = Array.isArray(data.catalogs) ? data.catalogs : [];
+      catalogs.forEach((catalog) => sourceUrls.set(catalog.slug, catalog.sourceUrl));
+      const extras = await Promise.all(EXTRA_CATALOGS.map(async (catalog, index) => {
+        try {
+          const loaded = await loadExtra(catalog);
+          return {
+            id: EXTRA_ID_BASE + index,
+            slug: catalog.slug,
+            name: catalog.name,
+            packageCount: loaded.packages.length,
+            lastUpdatedAt: loaded.updatedAt,
+            sourceUrl: catalog.sourceUrl,
+            copyCount24h: 0
+          };
+        } catch (error) {
+          return null;
+        }
+      }));
+      return jsonResponse({ ...data, catalogs: [...catalogs, ...extras.filter(Boolean)] });
+    }
+
+    function loadExtra(catalog) {
+      const entry = extraLoads.get(catalog.slug);
+      if (entry && Date.now() - entry.at < EXTRA_TTL_MS) return entry.promise;
+      const promise = (async () => {
+        const response = await nativeFetch(catalog.sourceUrl);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const modified = Date.parse(response.headers.get('Last-Modified') || '');
+        const base = EXTRA_ID_BASE + EXTRA_CATALOGS.indexOf(catalog) * 1000000;
+        return {
+          updatedAt: new Date(Number.isNaN(modified) ? Date.now() : modified).toISOString(),
+          packages: (Array.isArray(data.packages) ? data.packages : []).map((pkg, index) => ({
+            ...pkg,
+            id: base + index,
+            catalogSlug: catalog.slug
+          }))
+        };
+      })();
+      extraLoads.set(catalog.slug, { at: Date.now(), promise });
+      promise.catch(() => extraLoads.delete(catalog.slug));
+      return promise;
+    }
 
     async function servePage(slug, url) {
       const query = url.searchParams.get('query') || '';
       const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
-      if (!prefsActive()) {
+      if (!prefsActive() && !extraCatalog(slug)) {
         const response = await nativeFetch(url.href);
         if (response.ok) {
           const data = await response.clone().json();
@@ -338,12 +440,11 @@
         return response;
       }
       const all = await fullList(slug, query);
-      const packages = applyPrefs(all.packages);
+      const packages = prefsActive() ? applyPrefs(all.packages) : all.packages;
       const start = (page - 1) * all.pageSize;
       const slice = packages.slice(start, start + all.pageSize);
       record(slug, query, page, slice, packages.length);
-      const body = { total: packages.length, page, pageSize: all.pageSize, packages: slice };
-      return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return jsonResponse({ total: packages.length, page, pageSize: all.pageSize, packages: slice });
     }
 
     function fullList(slug, query) {
@@ -357,6 +458,18 @@
     }
 
     async function loadFullList(slug, query) {
+      const extra = extraCatalog(slug);
+      if (extra) {
+        // Same matching as a plain text search: title or title ID contains it.
+        const needle = query.trim().toLowerCase();
+        const { packages } = await loadExtra(extra);
+        return {
+          pageSize: PAGE_SIZE,
+          packages: needle
+            ? packages.filter((pkg) => `${pkg.title || ''} ${pkg.titleId || ''}`.toLowerCase().includes(needle))
+            : packages
+        };
+      }
       const fetchPage = async (page) => {
         const url = `/api/catalogs/${encodeURIComponent(slug)}/packages?query=${encodeURIComponent(query)}&page=${page}`;
         const response = await nativeFetch(url);
@@ -364,7 +477,7 @@
         return response.json();
       };
       const first = await fetchPage(1);
-      const pageSize = first.pageSize || first.packages.length || 48;
+      const pageSize = first.pageSize || first.packages.length || PAGE_SIZE;
       const pageCount = Math.ceil((first.total || 0) / pageSize);
       const pages = [first.packages];
       let next = 2;
@@ -488,7 +601,7 @@
         return;
       }
       const request = {
-        catalog: `${location.origin}/catalogs/${view.slug}.json`,
+        catalog: sourceUrls.get(view.slug) || `${location.origin}/catalogs/${view.slug}.json`,
         titleId: pkg.titleId || '',
         title: pkg.title || ''
       };

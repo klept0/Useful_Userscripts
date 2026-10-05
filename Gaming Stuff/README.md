@@ -4,7 +4,7 @@ A userscript for the web UI of [Pegasus DL](https://github.com/pegasus-ps5/pegas
 
 ## Thanks
 
-All credit for Pegasus DL itself goes to the [pegasus-ps5/pegasus-dl](https://github.com/pegasus-ps5/pegasus-dl) team. This script only adds a small layer on top of their store UI; the app, the catalogs integration and the download pipeline are their work. Thanks also to the catalog maintainers (DLPS, PFS, Pippo, ZER0GAME, evoX-CoreOS) whose release notes make the firmware data possible.
+All credit for Pegasus DL itself goes to the [pegasus-ps5/pegasus-dl](https://github.com/pegasus-ps5/pegasus-dl) team. This script only adds a small layer on top of their store UI; the app, the catalogs integration and the download pipeline are their work. Thanks also to the catalog maintainers (DLPS, PFS, Pippo, ZER0GAME, evoX-CoreOS) whose release notes make the firmware data possible, and to [M3hmetSa1t](https://github.com/M3hmetSa1t/pegasus-ps4-collection-catalog) for the PS4 FPKG Collection catalog.
 
 ## Features
 
@@ -26,6 +26,18 @@ All credit for Pegasus DL itself goes to the [pegasus-ps5/pegasus-dl](https://gi
 ## Pegasus Catalog site
 
 On [pegasus-catalog.fly.dev](https://pegasus-catalog.fly.dev/) the same picker and sort appear under the catalog title, with a count of matching packages. The site loads packages 48 at a time from its server, so while a firmware or sort is set the script fetches the whole selected catalog once (cached for a minute), filters and sorts it, and hands the results back to the site page by page. Search, catalog switching and infinite scroll keep working. With **Any FW** and **Default order** the site's requests pass through untouched; only the badges are added.
+
+### Extra catalog: PS4 FPKG Collection
+
+The catalog site also lists the [PS4 FPKG Collection](https://github.com/M3hmetSa1t/pegasus-ps4-collection-catalog) by M3hmetSa1t: 866 PS4 FPKGs with patches and DLCs merged, hosted on the Internet Archive. It is not on pegasus-catalog.fly.dev itself; the script reads its catalog JSON from GitHub Pages and adds it to the site's catalog list. Browsing, search, infinite scroll, the details pane, **Copy Source URL** and **Send to PS5** all work as with the built-in catalogs. It has no copy counter, so that shows 0.
+
+PS4 packages get a `PS4` badge instead of a firmware badge. Their "Min FW" is a PS4 system firmware and says nothing about PS5 firmware, so the PS5 firmware picker never hides them, and firmware sorting puts them after the PS5 packages.
+
+To download from it on the console, add it as a source in Pegasus DL first (Sources > Add Source by URL):
+
+```text
+https://m3hmetsa1t.github.io/pegasus-ps4-collection-catalog/pegasus-ps4-catalog.json
+```
 
 ## Send to PS5
 

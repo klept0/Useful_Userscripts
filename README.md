@@ -20,6 +20,7 @@ Scripts installed from these links update automatically when a new version is pu
 | [Reddit 503 Auto Refresh](#reddit-503-auto-refresh) | Reddit | 3 | [Install][reddit-503] |
 | [Pegasus DL Firmware Filter](#pegasus-dl-firmware-filter) | Pegasus DL (PS5), Pegasus Catalog | 1.3.0 | [Install][pegasus] |
 | [Amazon Links](#amazon-links) | Amazon | 2.0 | [Install][amazon] |
+| [GitHub Active Forks](#github-active-forks) | GitHub | 1.0.0 | [Install][active-forks] |
 
 ### Social media
 
@@ -70,6 +71,12 @@ Thanks to the [pegasus-ps5/pegasus-dl](https://github.com/pegasus-ps5/pegasus-dl
 
 [Install][amazon] · [Source](Shopping%20Stuff/Amazon%20Links.user.js)
 
+### Developer
+
+#### GitHub Active Forks
+
+Adds an **Active Forks** button next to the Fork button on any GitHub repository page. It opens the repo in [Active Forks](https://techgaun.github.io/active-forks/) by [techgaun](https://github.com/techgaun), which lists forks by stars and recent activity, handy for finding a maintained fork of an abandoned project. Also available as **Open Active Forks** in the userscript manager menu. Userscript version of the Active Forks bookmarklet. [Install][active-forks] · [Source](Developer%20Stuff/GitHub%20Active%20Forks.user.js)
+
 ## Feedback
 
 Found a bug or want a feature? [Open an issue](https://github.com/klept0/Useful_Userscripts/issues).
@@ -83,3 +90,4 @@ My own work in this repo is under the [MIT License](LICENSE). Scripts adapted fr
 [sponsorblock]: https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Ad%20Blocking/sponsorblock-ad-skipper.user.js
 [pegasus]: https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Gaming%20Stuff/Pegasus%20DL%20Firmware%20Filter.user.js
 [amazon]: https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Shopping%20Stuff/Amazon%20Links.user.js
+[active-forks]: https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Developer%20Stuff/GitHub%20Active%20Forks.user.js

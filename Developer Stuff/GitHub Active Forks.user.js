@@ -1,28 +1,42 @@
 // ==UserScript==
 // @name        GitHub Active Forks
 // @namespace   https://github.com/klept0/Useful_Userscripts
-// @description Adds an "Active Forks" button to GitHub repository pages that opens the repo in techgaun's Active Forks tool, to find the most active forks of abandoned projects.
+// @description Adds an "Active Forks" button to GitHub repository pages that lists the repo's forks by stars and recent activity, right on the page, to find a maintained fork of an abandoned project.
 // @match       https://github.com/*
 // @run-at      document-end
-// @version     1.0.0
+// @version     2.0.0
 // @grant       GM_registerMenuCommand
-// @grant       GM_openInTab
+// @grant       GM_xmlhttpRequest
+// @grant       GM_getValue
+// @grant       GM_setValue
+// @connect     api.github.com
 // @homepageURL https://github.com/klept0/Useful_Userscripts
 // @downloadURL https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Developer%20Stuff/GitHub%20Active%20Forks.user.js
 // @updateURL   https://raw.githubusercontent.com/klept0/Useful_Userscripts/master/Developer%20Stuff/GitHub%20Active%20Forks.user.js
 // ==/UserScript==
 
 /**
- * Userscript version of the Active Forks bookmarklet:
- *   https://techgaun.github.io/active-forks/
+ * Self-contained take on techgaun's Active Forks tool
+ * (https://techgaun.github.io/active-forks/): the forks are fetched from the
+ * GitHub REST API by this script and shown in a popup on the GitHub page.
+ * No third-party site is involved.
  *
- * The bookmarklet parsed document.title. This script reads the repository
- * from GitHub's page metadata instead, so it works on every page of a repo
- * (issues, PRs, files), not only the repo home page.
+ * Two ways to open it:
+ * 1. The "Active Forks" button next to the Fork button in the repo header.
+ * 2. "Show active forks" in the userscript manager menu.
  *
- * Two ways to open Active Forks:
- * 1. An "Active Forks" button next to the Fork button in the repo header.
- * 2. "Open Active Forks" in the userscript manager menu.
+ * The popup lists the upstream repo first, then its forks with stars, forks,
+ * open issues, size and last push. Click a column header to sort. Forks with
+ * no pushes since they were created are hidden by default, since they hold
+ * nothing the upstream lacks. Forks pushed more recently than the upstream
+ * get a "newer" badge.
+ *
+ * Rate limits: without a token the GitHub API allows 60 requests per hour per
+ * IP (one request per 100 forks). Set a personal access token with
+ * "Set GitHub token" in the userscript manager menu to raise that to 5,000.
+ * A fine-grained token with no extra permissions is enough for public repos.
+ * The token is kept in the userscript manager's storage and is only sent to
+ * api.github.com.
  *
  * GitHub navigates without full page loads (Turbo), so the button is
  * re-added after each navigation.
@@ -31,8 +45,12 @@
 (function () {
   'use strict';
 
-  const ACTIVE_FORKS_URL = 'https://techgaun.github.io/active-forks/index.html#';
+  const API = 'https://api.github.com';
+  const PER_PAGE = 100;
+  const MAX_PAGES = 10; // Up to 1,000 forks per repo.
   const BUTTON_ID = 'uus-active-forks-button';
+  const STYLE_ID = 'uus-active-forks-style';
+  const OVERLAY_ID = 'uus-active-forks-overlay';
 
   // First path segments on github.com that are never a repository owner.
   const RESERVED = new Set([
@@ -42,6 +60,13 @@
     'pulls', 'search', 'security', 'settings', 'signup', 'sponsors', 'topics',
     'trending',
   ]);
+
+  // Fetched results, per repo, for this page session.
+  const cache = new Map();
+
+  /* ------------------------------------------------------------------ */
+  /* Repo detection                                                      */
+  /* ------------------------------------------------------------------ */
 
   /** Returns "owner/repo" for the current page, or null if not a repo page. */
   function getRepo() {
@@ -55,19 +80,338 @@
     return `${owner}/${repo}`;
   }
 
-  function openActiveForks() {
+  /* ------------------------------------------------------------------ */
+  /* GitHub API                                                          */
+  /* ------------------------------------------------------------------ */
+
+  /** GET an API path. Resolves with parsed JSON, rejects with a readable Error. */
+  function apiGet(path) {
+    return new Promise((resolve, reject) => {
+      const headers = {
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      };
+      const token = GM_getValue('token', '');
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      GM_xmlhttpRequest({
+        method: 'GET',
+        url: API + path,
+        headers,
+        onload(res) {
+          if (res.status === 200) {
+            try {
+              resolve(JSON.parse(res.responseText));
+            } catch (e) {
+              reject(new Error('GitHub returned an unreadable response.'));
+            }
+            return;
+          }
+          const remaining = /x-ratelimit-remaining:\s*(\d+)/i.exec(res.responseHeaders || '');
+          if ((res.status === 403 || res.status === 429) && remaining && remaining[1] === '0') {
+            const reset = /x-ratelimit-reset:\s*(\d+)/i.exec(res.responseHeaders || '');
+            const when = reset ? ` It resets at ${new Date(reset[1] * 1000).toLocaleTimeString()}.` : '';
+            reject(new Error(`GitHub API rate limit reached.${when}` +
+              (token ? '' : ' Set a GitHub token in the userscript menu to raise the limit.')));
+          } else if (res.status === 401) {
+            reject(new Error('GitHub rejected the saved token. Update it with "Set GitHub token".'));
+          } else if (res.status === 404) {
+            reject(new Error('Repository not found. Private repositories need a token with access.'));
+          } else {
+            reject(new Error(`GitHub API error ${res.status}.`));
+          }
+        },
+        onerror() {
+          reject(new Error('Network error while contacting the GitHub API.'));
+        },
+      });
+    });
+  }
+
+  /** Fetches the repo and up to MAX_PAGES pages of its direct forks. */
+  async function loadForks(repo, onProgress) {
+    if (cache.has(repo)) return cache.get(repo);
+
+    const upstream = await apiGet(`/repos/${repo}`);
+    const forks = [];
+    // forks_count also counts forks the API does not list (private, disabled),
+    // so "truncated" means the page cap was hit, not a count mismatch.
+    let truncated = false;
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      onProgress(`Loading forks (${forks.length} of ${upstream.forks_count})…`);
+      const batch = await apiGet(`/repos/${repo}/forks?sort=stargazers&per_page=${PER_PAGE}&page=${page}`);
+      forks.push(...batch);
+      if (batch.length < PER_PAGE) break;
+      if (page === MAX_PAGES) truncated = true;
+    }
+
+    const result = { upstream, forks, truncated };
+    cache.set(repo, result);
+    return result;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Formatting                                                          */
+  /* ------------------------------------------------------------------ */
+
+  const relativeFormat = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+  const UNITS = [
+    ['year', 365 * 24 * 3600],
+    ['month', 30 * 24 * 3600],
+    ['week', 7 * 24 * 3600],
+    ['day', 24 * 3600],
+    ['hour', 3600],
+    ['minute', 60],
+  ];
+
+  function timeAgo(iso) {
+    if (!iso) return 'never';
+    const seconds = (new Date(iso) - Date.now()) / 1000;
+    for (const [unit, size] of UNITS) {
+      if (Math.abs(seconds) >= size) return relativeFormat.format(Math.round(seconds / size), unit);
+    }
+    return 'just now';
+  }
+
+  /** Repo size from the API is in KB. */
+  function formatSize(kb) {
+    if (kb >= 1024 * 1024) return `${(kb / 1024 / 1024).toFixed(1)} GB`;
+    if (kb >= 1024) return `${(kb / 1024).toFixed(1)} MB`;
+    return `${kb} KB`;
+  }
+
+  /** True when the fork has had a push since it was created. */
+  function hasOwnPushes(fork) {
+    return new Date(fork.pushed_at) > new Date(fork.created_at);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Popup                                                               */
+  /* ------------------------------------------------------------------ */
+
+  const COLUMNS = [
+    { key: 'full_name', label: 'Repository', numeric: false },
+    { key: 'stargazers_count', label: 'Stars', numeric: true },
+    { key: 'forks_count', label: 'Forks', numeric: true },
+    { key: 'open_issues_count', label: 'Open issues', numeric: true },
+    { key: 'size', label: 'Size', numeric: true },
+    { key: 'pushed_at', label: 'Last push', numeric: false },
+  ];
+
+  function addStyles() {
+    if (document.getElementById(STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = `
+      #${OVERLAY_ID} {
+        position: fixed; inset: 0; z-index: 2000;
+        display: flex; align-items: center; justify-content: center;
+        padding: 16px; background: rgba(0, 0, 0, 0.5);
+      }
+      #${OVERLAY_ID} .uaf-panel {
+        display: flex; flex-direction: column;
+        width: 100%; max-width: 1100px; max-height: 85vh;
+        color: var(--fgColor-default, #1f2328);
+        background: var(--bgColor-default, #fff);
+        border: 1px solid var(--borderColor-default, #d1d9e0);
+        border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        font-size: 14px;
+      }
+      #${OVERLAY_ID} .uaf-head {
+        display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--borderColor-default, #d1d9e0);
+      }
+      #${OVERLAY_ID} .uaf-title { margin: 0; font-size: 16px; font-weight: 600; flex: 1 1 auto; }
+      #${OVERLAY_ID} .uaf-close {
+        border: 0; background: none; cursor: pointer; font-size: 20px; line-height: 1;
+        color: var(--fgColor-muted, #59636e);
+      }
+      #${OVERLAY_ID} .uaf-controls {
+        display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+        padding: 8px 16px; color: var(--fgColor-muted, #59636e);
+      }
+      #${OVERLAY_ID} .uaf-controls input[type="search"] {
+        padding: 4px 8px; min-width: 200px;
+        color: inherit; background: var(--bgColor-default, #fff);
+        border: 1px solid var(--borderColor-default, #d1d9e0); border-radius: 6px;
+      }
+      #${OVERLAY_ID} .uaf-status { padding: 4px 16px 8px; color: var(--fgColor-muted, #59636e); }
+      #${OVERLAY_ID} .uaf-status.uaf-error { color: var(--fgColor-danger, #d1242f); }
+      #${OVERLAY_ID} .uaf-body { overflow: auto; }
+      #${OVERLAY_ID} table { width: 100%; border-collapse: collapse; }
+      #${OVERLAY_ID} th, #${OVERLAY_ID} td {
+        padding: 6px 16px; text-align: left; white-space: nowrap;
+        border-top: 1px solid var(--borderColor-muted, #d1d9e0b3);
+      }
+      #${OVERLAY_ID} th {
+        position: sticky; top: 0; cursor: pointer; user-select: none;
+        background: var(--bgColor-muted, #f6f8fa); font-weight: 600;
+      }
+      #${OVERLAY_ID} .uaf-num { text-align: right; }
+      #${OVERLAY_ID} tr.uaf-upstream td { background: var(--bgColor-accent-muted, #ddf4ff); }
+      #${OVERLAY_ID} .uaf-badge {
+        margin-left: 6px; padding: 0 6px; border-radius: 10px; font-size: 12px;
+        border: 1px solid currentColor;
+      }
+      #${OVERLAY_ID} .uaf-badge-new { color: var(--fgColor-success, #1a7f37); }
+      #${OVERLAY_ID} .uaf-badge-up { color: var(--fgColor-accent, #0969da); }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function el(tag, props, children) {
+    const node = document.createElement(tag);
+    Object.assign(node, props || {});
+    (children || []).forEach((child) => node.append(child));
+    return node;
+  }
+
+  function closePopup() {
+    const overlay = document.getElementById(OVERLAY_ID);
+    if (overlay) overlay.remove();
+    document.removeEventListener('keydown', onKeydown, true);
+  }
+
+  function onKeydown(event) {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      closePopup();
+    }
+  }
+
+  async function showActiveForks() {
     const repo = getRepo();
     if (!repo) {
       alert('Not a GitHub repository page.');
       return;
     }
-    const url = ACTIVE_FORKS_URL + repo;
-    if (typeof GM_openInTab === 'function') {
-      GM_openInTab(url, { active: true });
-    } else {
-      window.open(url, '_blank', 'noopener');
+
+    closePopup();
+    addStyles();
+
+    const state = { sortKey: 'stargazers_count', sortDir: -1, hideUnchanged: true, filter: '' };
+
+    const status = el('div', { className: 'uaf-status', textContent: 'Loading…' });
+    const hideBox = el('input', { type: 'checkbox', checked: true });
+    const filterBox = el('input', { type: 'search', placeholder: 'Filter by owner or name' });
+    const table = el('table');
+    const panel = el('div', { className: 'uaf-panel', role: 'dialog' }, [
+      el('div', { className: 'uaf-head' }, [
+        el('h2', { className: 'uaf-title', textContent: `Active forks of ${repo}` }),
+        el('button', { className: 'uaf-close', type: 'button', title: 'Close (Esc)', textContent: '×', onclick: closePopup }),
+      ]),
+      el('div', { className: 'uaf-controls' }, [
+        el('label', {}, [hideBox, ' Hide forks with no pushes of their own']),
+        filterBox,
+      ]),
+      status,
+      el('div', { className: 'uaf-body' }, [table]),
+    ]);
+    const overlay = el('div', { id: OVERLAY_ID }, [panel]);
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) closePopup();
+    });
+    document.body.appendChild(overlay);
+    document.addEventListener('keydown', onKeydown, true);
+
+    let data;
+    try {
+      data = await loadForks(repo, (text) => { status.textContent = text; });
+    } catch (error) {
+      status.textContent = error.message;
+      status.classList.add('uaf-error');
+      return;
     }
+    if (!overlay.isConnected) return; // Closed while loading.
+
+    const render = () => renderTable(table, status, data, state);
+    hideBox.addEventListener('change', () => { state.hideUnchanged = hideBox.checked; render(); });
+    filterBox.addEventListener('input', () => { state.filter = filterBox.value.trim().toLowerCase(); render(); });
+    table.addEventListener('click', (event) => {
+      const th = event.target.closest('th');
+      if (!th) return;
+      const key = th.dataset.key;
+      if (state.sortKey === key) {
+        state.sortDir = -state.sortDir;
+      } else {
+        state.sortKey = key;
+        state.sortDir = key === 'full_name' ? 1 : -1;
+      }
+      render();
+    });
+    render();
   }
+
+  function renderTable(table, status, data, state) {
+    const { upstream, forks, truncated } = data;
+
+    let rows = forks;
+    if (state.hideUnchanged) rows = rows.filter(hasOwnPushes);
+    if (state.filter) rows = rows.filter((f) => f.full_name.toLowerCase().includes(state.filter));
+
+    const { sortKey, sortDir } = state;
+    rows = rows.slice().sort((a, b) => {
+      let x = a[sortKey];
+      let y = b[sortKey];
+      if (sortKey === 'pushed_at') {
+        x = new Date(x || 0).getTime();
+        y = new Date(y || 0).getTime();
+      } else if (typeof x === 'string') {
+        return x.localeCompare(y) * sortDir;
+      }
+      return (x - y) * sortDir || b.stargazers_count - a.stargazers_count;
+    });
+
+    const hidden = forks.length - rows.length;
+    let text = `Showing ${rows.length} of ${forks.length} loaded forks`;
+    if (hidden) text += ` (${hidden} hidden)`;
+    if (truncated) text += `. Only the ${forks.length} most-starred forks are loaded.`;
+    else text += '.';
+    if (!forks.length) text = 'This repository has no forks.';
+    status.textContent = text;
+
+    const headRow = el('tr', {}, COLUMNS.map((col) => {
+      const arrow = col.key === sortKey ? (sortDir < 0 ? ' ▼' : ' ▲') : '';
+      const th = el('th', { className: col.numeric ? 'uaf-num' : '', textContent: col.label + arrow });
+      th.dataset.key = col.key;
+      return th;
+    }));
+
+    const upstreamPushed = new Date(upstream.pushed_at);
+    const body = [makeRow(upstream, 'upstream', true)];
+    rows.forEach((fork) => {
+      const newer = new Date(fork.pushed_at) > upstreamPushed;
+      body.push(makeRow(fork, newer ? 'newer' : '', false));
+    });
+
+    table.replaceChildren(el('thead', {}, [headRow]), el('tbody', {}, body));
+  }
+
+  function makeRow(repo, badge, isUpstream) {
+    const link = el('a', { href: repo.html_url, target: '_blank', rel: 'noopener', textContent: repo.full_name });
+    const nameCell = el('td', {}, [link]);
+    if (badge) {
+      nameCell.append(el('span', {
+        className: `uaf-badge ${isUpstream ? 'uaf-badge-up' : 'uaf-badge-new'}`,
+        textContent: badge,
+        title: isUpstream ? 'The repository you are viewing' : 'Pushed more recently than the upstream repository',
+      }));
+    }
+    const num = (value) => el('td', { className: 'uaf-num', textContent: Number(value).toLocaleString() });
+    return el('tr', { className: isUpstream ? 'uaf-upstream' : '' }, [
+      nameCell,
+      num(repo.stargazers_count),
+      num(repo.forks_count),
+      num(repo.open_issues_count),
+      el('td', { className: 'uaf-num', textContent: formatSize(repo.size) }),
+      el('td', { textContent: timeAgo(repo.pushed_at), title: repo.pushed_at ? new Date(repo.pushed_at).toLocaleString() : '' }),
+    ]);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Header button and menu                                              */
+  /* ------------------------------------------------------------------ */
 
   /** Adds the button to the repo header actions (Watch / Fork / Star). */
   function addButton() {
@@ -82,30 +426,41 @@
     if (!actions) return;
 
     const li = document.createElement('li');
-    const a = document.createElement('a');
-    a.id = BUTTON_ID;
+    const button = document.createElement('button');
+    button.id = BUTTON_ID;
+    button.type = 'button';
     if (forkButton) {
       // Copy the Fork button's look so ours matches GitHub's styling.
-      a.className = forkButton.className;
+      button.className = forkButton.className;
       ['data-component', 'data-size', 'data-variant'].forEach((attr) => {
         const value = forkButton.getAttribute(attr);
-        if (value) a.setAttribute(attr, value);
+        if (value) button.setAttribute(attr, value);
       });
     } else {
-      a.className = 'btn-sm btn';
+      button.className = 'btn-sm btn';
     }
-    a.href = ACTIVE_FORKS_URL + getRepo();
-    a.target = '_blank';
-    a.rel = 'noopener';
-    a.title = 'Find the most active forks of this repository';
-    a.textContent = 'Active Forks';
-    li.appendChild(a);
+    button.title = 'List the most active forks of this repository';
+    button.textContent = 'Active Forks';
+    button.addEventListener('click', showActiveForks);
+    li.appendChild(button);
     actions.appendChild(li);
   }
 
-  if (typeof GM_registerMenuCommand === 'function') {
-    GM_registerMenuCommand('Open Active Forks', openActiveForks);
+  function setToken() {
+    const current = GM_getValue('token', '');
+    const value = prompt(
+      'GitHub personal access token for the Active Forks script.\n' +
+      'Raises the API limit from 60 to 5,000 requests per hour.\n' +
+      'Leave empty to remove the saved token.',
+      current ? '(token saved: leave as is to keep it)' : ''
+    );
+    if (value === null || value.startsWith('(token saved')) return;
+    GM_setValue('token', value.trim());
+    cache.clear();
   }
+
+  GM_registerMenuCommand('Show active forks', showActiveForks);
+  GM_registerMenuCommand('Set GitHub token', setToken);
 
   addButton();
   document.addEventListener('turbo:load', addButton);

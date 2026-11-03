@@ -20,7 +20,7 @@ Scripts installed from these links update automatically when a new version is pu
 | [Reddit 503 Auto Refresh](#reddit-503-auto-refresh) | Reddit | 3 | [Install][reddit-503] |
 | [Pegasus DL Firmware Filter](#pegasus-dl-firmware-filter) | Pegasus DL (PS5), Pegasus Catalog | 1.3.0 | [Install][pegasus] |
 | [Amazon Links](#amazon-links) | Amazon | 2.0 | [Install][amazon] |
-| [GitHub Active Forks](#github-active-forks) | GitHub | 1.0.0 | [Install][active-forks] |
+| [GitHub Active Forks](#github-active-forks) | GitHub | 2.0.0 | [Install][active-forks] |
 
 ### Social media
 
@@ -75,7 +75,13 @@ Thanks to the [pegasus-ps5/pegasus-dl](https://github.com/pegasus-ps5/pegasus-dl
 
 #### GitHub Active Forks
 
-Adds an **Active Forks** button next to the Fork button on any GitHub repository page. It opens the repo in [Active Forks](https://techgaun.github.io/active-forks/) by [techgaun](https://github.com/techgaun), which lists forks by stars and recent activity, handy for finding a maintained fork of an abandoned project. Also available as **Open Active Forks** in the userscript manager menu. Userscript version of the Active Forks bookmarklet. [Install][active-forks] · [Source](Developer%20Stuff/GitHub%20Active%20Forks.user.js)
+Adds an **Active Forks** button next to the Fork button on any GitHub repository page. It opens a popup listing the repo's forks with stars, forks, open issues, size and last push, sortable by any column. Everything is fetched from the GitHub API by the script itself; no third-party site is used.
+
+- Hides forks with no pushes of their own (toggle), plus a name filter
+- "newer" badge on forks pushed more recently than the upstream
+- Optional GitHub token (**Set GitHub token** in the userscript manager menu) raises the API limit from 60 to 5,000 requests per hour
+
+Inspired by [Active Forks](https://techgaun.github.io/active-forks/) by [techgaun](https://github.com/techgaun). [Install][active-forks] · [Source](Developer%20Stuff/GitHub%20Active%20Forks.user.js)
 
 ## Feedback
 

@@ -20,7 +20,7 @@ Scripts installed from these links update automatically when a new version is pu
 | [Reddit 503 Auto Refresh](#reddit-503-auto-refresh) | Reddit | 3 | [Install][reddit-503] |
 | [Pegasus DL Firmware Filter](#pegasus-dl-firmware-filter) | Pegasus DL (PS5), Pegasus Catalog | 1.3.0 | [Install][pegasus] |
 | [Amazon Links](#amazon-links) | Amazon | 2.0 | [Install][amazon] |
-| [GitHub Active Forks](#github-active-forks) | GitHub | 2.0.0 | [Install][active-forks] |
+| [GitHub Active Forks](#github-active-forks) | GitHub | 2.1.0 | [Install][active-forks] |
 
 ### Social media
 
@@ -77,6 +77,7 @@ Thanks to the [pegasus-ps5/pegasus-dl](https://github.com/pegasus-ps5/pegasus-dl
 
 Adds an **Active Forks** button next to the Fork button on any GitHub repository page. It opens a popup listing the repo's forks with stars, forks, open issues, size and last push, sortable by any column. Everything is fetched from the GitHub API by the script itself; no third-party site is used.
 
+- Loads forks in blocks of 10, 20, 50 or 100 (newest first, choice remembered) with a **Load more** button
 - Hides forks with no pushes of their own (toggle), plus a name filter
 - "newer" badge on forks pushed more recently than the upstream
 - Optional GitHub token (**Set GitHub token** in the userscript manager menu) raises the API limit from 60 to 5,000 requests per hour

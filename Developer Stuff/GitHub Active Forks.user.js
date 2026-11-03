@@ -4,7 +4,7 @@
 // @description Adds an "Active Forks" button to GitHub repository pages that lists the repo's forks by stars and recent activity, right on the page, to find a maintained fork of an abandoned project.
 // @match       https://github.com/*
 // @run-at      document-end
-// @version     2.0.0
+// @version     2.1.0
 // @grant       GM_registerMenuCommand
 // @grant       GM_xmlhttpRequest
 // @grant       GM_getValue
@@ -31,8 +31,12 @@
  * nothing the upstream lacks. Forks pushed more recently than the upstream
  * get a "newer" badge.
  *
+ * Forks load in blocks, newest fork first: pick 10, 20, 50 or 100 per block
+ * in the popup (remembered), then use "Load more" for the next block. The
+ * table sorts whatever is loaded (by stars unless you pick another column).
+ *
  * Rate limits: without a token the GitHub API allows 60 requests per hour per
- * IP (one request per 100 forks). Set a personal access token with
+ * IP (one request per block, plus one for the repo). Set a personal access token with
  * "Set GitHub token" in the userscript manager menu to raise that to 5,000.
  * A fine-grained token with no extra permissions is enough for public repos.
  * The token is kept in the userscript manager's storage and is only sent to
@@ -46,8 +50,8 @@
   'use strict';
 
   const API = 'https://api.github.com';
-  const PER_PAGE = 100;
-  const MAX_PAGES = 10; // Up to 1,000 forks per repo.
+  const BLOCK_SIZES = [10, 20, 50, 100]; // Forks fetched per "Load more".
+  const DEFAULT_BLOCK = 20;
   const BUTTON_ID = 'uus-active-forks-button';
   const STYLE_ID = 'uus-active-forks-style';
   const OVERLAY_ID = 'uus-active-forks-overlay';
@@ -128,26 +132,57 @@
     });
   }
 
-  /** Fetches the repo and up to MAX_PAGES pages of its direct forks. */
-  async function loadForks(repo, onProgress) {
+  /** The saved block size, or the default if none or invalid. */
+  function getBlockSize() {
+    const size = Number(GM_getValue('blockSize', DEFAULT_BLOCK));
+    return BLOCK_SIZES.includes(size) ? size : DEFAULT_BLOCK;
+  }
+
+  /**
+   * Fetches the repo itself (cached). Forks are loaded separately, one block
+   * at a time, by loadMore().
+   */
+  async function loadUpstream(repo) {
     if (cache.has(repo)) return cache.get(repo);
-
     const upstream = await apiGet(`/repos/${repo}`);
-    const forks = [];
-    // forks_count also counts forks the API does not list (private, disabled),
-    // so "truncated" means the page cap was hit, not a count mismatch.
-    let truncated = false;
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      onProgress(`Loading forks (${forks.length} of ${upstream.forks_count})…`);
-      const batch = await apiGet(`/repos/${repo}/forks?sort=stargazers&per_page=${PER_PAGE}&page=${page}`);
-      forks.push(...batch);
-      if (batch.length < PER_PAGE) break;
-      if (page === MAX_PAGES) truncated = true;
-    }
+    const data = {
+      upstream,
+      forks: [],
+      perPage: getBlockSize(),
+      page: 0, // Last API page loaded, in units of perPage.
+      done: upstream.forks_count === 0,
+      loading: false,
+    };
+    cache.set(repo, data);
+    return data;
+  }
 
-    const result = { upstream, forks, truncated };
-    cache.set(repo, result);
-    return result;
+  /**
+   * Fetches the next block of forks, newest first. sort=stargazers is not
+   * used: forks with equal stars come back in a different order on each
+   * request, so its pages overlap and skip forks (on a repo with 317 forks,
+   * only 266 distinct ones came back). sort=newest pages are stable.
+   */
+  async function loadMore(data) {
+    if (data.done) return;
+    const page = data.page + 1;
+    const batch = await apiGet(
+      `/repos/${data.upstream.full_name}/forks?sort=newest&per_page=${data.perPage}&page=${page}`
+    );
+    // After a block size change the new page can overlap forks already loaded.
+    const seen = new Set(data.forks.map((fork) => fork.id));
+    data.forks.push(...batch.filter((fork) => !seen.has(fork.id)));
+    data.page = page;
+    if (batch.length < data.perPage) data.done = true;
+  }
+
+  /**
+   * Switches the block size without discarding loaded forks: the next page
+   * is the one, in the new size, that holds the first fork not yet loaded.
+   */
+  function setBlockSize(data, size) {
+    data.perPage = size;
+    data.page = Math.floor(data.forks.length / size);
   }
 
   /* ------------------------------------------------------------------ */
@@ -231,11 +266,23 @@
         display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
         padding: 8px 16px; color: var(--fgColor-muted, #59636e);
       }
-      #${OVERLAY_ID} .uaf-controls input[type="search"] {
-        padding: 4px 8px; min-width: 200px;
+      #${OVERLAY_ID} .uaf-controls input[type="search"],
+      #${OVERLAY_ID} .uaf-controls select {
+        padding: 4px 8px;
         color: inherit; background: var(--bgColor-default, #fff);
         border: 1px solid var(--borderColor-default, #d1d9e0); border-radius: 6px;
       }
+      #${OVERLAY_ID} .uaf-controls input[type="search"] { min-width: 200px; }
+      #${OVERLAY_ID} .uaf-foot {
+        padding: 8px 16px; text-align: center;
+        border-top: 1px solid var(--borderColor-default, #d1d9e0);
+      }
+      #${OVERLAY_ID} .uaf-more {
+        padding: 5px 16px; cursor: pointer; font-weight: 500;
+        color: inherit; background: var(--bgColor-muted, #f6f8fa);
+        border: 1px solid var(--borderColor-default, #d1d9e0); border-radius: 6px;
+      }
+      #${OVERLAY_ID} .uaf-more:disabled { cursor: progress; opacity: 0.6; }
       #${OVERLAY_ID} .uaf-status { padding: 4px 16px 8px; color: var(--fgColor-muted, #59636e); }
       #${OVERLAY_ID} .uaf-status.uaf-error { color: var(--fgColor-danger, #d1242f); }
       #${OVERLAY_ID} .uaf-body { overflow: auto; }
@@ -295,6 +342,10 @@
     const status = el('div', { className: 'uaf-status', textContent: 'Loading…' });
     const hideBox = el('input', { type: 'checkbox', checked: true });
     const filterBox = el('input', { type: 'search', placeholder: 'Filter by owner or name' });
+    const blockSelect = el('select', {}, BLOCK_SIZES.map((size) =>
+      el('option', { value: String(size), textContent: String(size) })));
+    const moreButton = el('button', { type: 'button', className: 'uaf-more' });
+    const footer = el('div', { className: 'uaf-foot', hidden: true }, [moreButton]);
     const table = el('table');
     const panel = el('div', { className: 'uaf-panel', role: 'dialog' }, [
       el('div', { className: 'uaf-head' }, [
@@ -304,9 +355,11 @@
       el('div', { className: 'uaf-controls' }, [
         el('label', {}, [hideBox, ' Hide forks with no pushes of their own']),
         filterBox,
+        el('label', {}, ['Load ', blockSelect, ' at a time']),
       ]),
       status,
       el('div', { className: 'uaf-body' }, [table]),
+      footer,
     ]);
     const overlay = el('div', { id: OVERLAY_ID }, [panel]);
     overlay.addEventListener('click', (event) => {
@@ -317,7 +370,7 @@
 
     let data;
     try {
-      data = await loadForks(repo, (text) => { status.textContent = text; });
+      data = await loadUpstream(repo);
     } catch (error) {
       status.textContent = error.message;
       status.classList.add('uaf-error');
@@ -325,7 +378,41 @@
     }
     if (!overlay.isConnected) return; // Closed while loading.
 
-    const render = () => renderTable(table, status, data, state);
+    const render = () => {
+      status.classList.remove('uaf-error');
+      renderTable(table, status, data, state);
+      footer.hidden = data.done;
+      moreButton.disabled = data.loading;
+      moreButton.textContent = data.loading ? 'Loading…' : `Load ${data.perPage} more`;
+      blockSelect.value = String(data.perPage);
+    };
+
+    const fetchBlock = async () => {
+      if (data.loading || data.done) return;
+      data.loading = true;
+      render();
+      let error = null;
+      try {
+        await loadMore(data);
+      } catch (e) {
+        error = e;
+      }
+      data.loading = false;
+      if (!overlay.isConnected) return;
+      render();
+      if (error) {
+        status.textContent = error.message;
+        status.classList.add('uaf-error');
+      }
+    };
+
+    moreButton.addEventListener('click', fetchBlock);
+    blockSelect.addEventListener('change', () => {
+      const size = Number(blockSelect.value);
+      GM_setValue('blockSize', size);
+      if (!data.loading) setBlockSize(data, size);
+      render();
+    });
     hideBox.addEventListener('change', () => { state.hideUnchanged = hideBox.checked; render(); });
     filterBox.addEventListener('input', () => { state.filter = filterBox.value.trim().toLowerCase(); render(); });
     table.addEventListener('click', (event) => {
@@ -340,11 +427,13 @@
       }
       render();
     });
-    render();
+
+    if (!data.forks.length && !data.done) fetchBlock();
+    else render();
   }
 
   function renderTable(table, status, data, state) {
-    const { upstream, forks, truncated } = data;
+    const { upstream, forks, done } = data;
 
     let rows = forks;
     if (state.hideUnchanged) rows = rows.filter(hasOwnPushes);
@@ -366,9 +455,13 @@
     const hidden = forks.length - rows.length;
     let text = `Showing ${rows.length} of ${forks.length} loaded forks`;
     if (hidden) text += ` (${hidden} hidden)`;
-    if (truncated) text += `. Only the ${forks.length} most-starred forks are loaded.`;
-    else text += '.';
-    if (!forks.length) text = 'This repository has no forks.';
+    // forks_count also counts forks the API does not list (private,
+    // disabled), so "all loaded" comes from the API, not from this count.
+    text += done
+      ? '. All forks loaded.'
+      : `. ${upstream.forks_count.toLocaleString()} forks on GitHub, newest loaded first.`;
+    if (done && !forks.length) text = 'This repository has no forks.';
+    if (data.loading && !forks.length) text = 'Loading forks…';
     status.textContent = text;
 
     const headRow = el('tr', {}, COLUMNS.map((col) => {

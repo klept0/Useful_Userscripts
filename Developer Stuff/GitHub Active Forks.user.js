@@ -73,13 +73,27 @@
   function addButton() {
     if (document.getElementById(BUTTON_ID) || !getRepo()) return;
 
-    const actions = document.querySelector('ul.pagehead-actions');
+    // Current header: a <ul> of <li> items, one holding the Fork button.
+    // Older header: ul.pagehead-actions.
+    const forkButton = document.querySelector('[data-testid="fork-button"]');
+    const forkItem = forkButton && forkButton.closest('li');
+    const actions = (forkItem && forkItem.parentElement) ||
+      document.querySelector('ul.pagehead-actions');
     if (!actions) return;
 
     const li = document.createElement('li');
     const a = document.createElement('a');
     a.id = BUTTON_ID;
-    a.className = 'btn-sm btn';
+    if (forkButton) {
+      // Copy the Fork button's look so ours matches GitHub's styling.
+      a.className = forkButton.className;
+      ['data-component', 'data-size', 'data-variant'].forEach((attr) => {
+        const value = forkButton.getAttribute(attr);
+        if (value) a.setAttribute(attr, value);
+      });
+    } else {
+      a.className = 'btn-sm btn';
+    }
     a.href = ACTIVE_FORKS_URL + getRepo();
     a.target = '_blank';
     a.rel = 'noopener';
